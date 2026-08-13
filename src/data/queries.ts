@@ -3,7 +3,9 @@ import type {
   AttendanceRecord,
   Cohort,
   CohortInviteLink,
+  CohortStatus,
   IntakeForm,
+  MentorAssignment,
   MentorComment,
   Project,
   ProjectStage,
@@ -42,17 +44,46 @@ export async function listCohorts(): Promise<Cohort[]> {
 
 export async function createCohort(input: {
   name: string
+  programme?: string
   start_date: string
   end_date: string
 }): Promise<Cohort> {
-  const { data, error } = await supabase
-    .from('cohorts')
-    .insert({ name: input.name, start_date: input.start_date, end_date: input.end_date })
-    .select()
-    .single()
-
+  const { data, error } = await supabase.from('cohorts').insert(input).select().single()
   if (error) throw error
   return { ...data, student_count: 0, mentor_count: 0 }
+}
+
+export async function getCohort(id: string): Promise<Cohort> {
+  const [{ data: cohortRow, error: cohortErr }, { data: userRows, error: userErr }] =
+    await Promise.all([
+      supabase.from('cohorts').select('*').eq('id', id).single(),
+      supabase.from('users').select('role').eq('cohort_id', id),
+    ])
+
+  if (cohortErr) throw cohortErr
+  if (userErr) throw userErr
+
+  const student_count = (userRows ?? []).filter((u) => u.role === 'student').length
+  const mentor_count = (userRows ?? []).filter((u) => u.role === 'mentor').length
+
+  return { ...cohortRow, student_count, mentor_count }
+}
+
+export async function updateCohort(
+  id: string,
+  input: Partial<{
+    name: string
+    programme: string | null
+    start_date: string
+    end_date: string
+    status: CohortStatus
+    discord_invite_url: string | null
+    notion_url: string | null
+  }>,
+): Promise<Cohort> {
+  const { error } = await supabase.from('cohorts').update(input).eq('id', id)
+  if (error) throw error
+  return getCohort(id)
 }
 
 export async function deleteCohort(id: string): Promise<void> {
@@ -178,6 +209,14 @@ export async function updateUser(
   return data
 }
 
+export async function setUserActive(userId: string, active: boolean): Promise<User> {
+  const { data, error } = await supabase.functions.invoke('set-user-active', {
+    body: { user_id: userId, active },
+  })
+  if (error) throw error
+  return data.user
+}
+
 export async function getUser(id: string): Promise<User> {
   const { data, error } = await supabase.from('users').select('*').eq('id', id).single()
   if (error) throw error
@@ -227,6 +266,53 @@ export async function listStudentsByCohort(cohortId?: string): Promise<User[]> {
   const { data, error } = await query
   if (error) throw error
   return data ?? []
+}
+
+export async function listMentorsByCohort(cohortId?: string): Promise<User[]> {
+  let query = supabase.from('users').select('*').eq('role', 'mentor')
+  if (cohortId) query = query.eq('cohort_id', cohortId)
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
+export async function listMentorAssignments(filter?: {
+  mentorId?: string
+  studentIds?: string[]
+}): Promise<MentorAssignment[]> {
+  let query = supabase.from('mentor_assignments').select('*')
+  if (filter?.mentorId) query = query.eq('mentor_id', filter.mentorId)
+  if (filter?.studentIds) query = query.in('student_id', filter.studentIds)
+  const { data, error } = await query
+  if (error) throw error
+  return data ?? []
+}
+
+export async function assignMentorToStudents(
+  mentorId: string,
+  studentIds: string[],
+  assignedBy: string,
+): Promise<void> {
+  if (studentIds.length === 0) return
+  const { error } = await supabase.from('mentor_assignments').upsert(
+    studentIds.map((studentId) => ({
+      mentor_id: mentorId,
+      student_id: studentId,
+      assigned_by: assignedBy,
+    })),
+    { onConflict: 'mentor_id,student_id' },
+  )
+  if (error) throw error
+}
+
+export async function unassignMentorFromStudent(mentorId: string, studentId: string): Promise<void> {
+  const { error } = await supabase
+    .from('mentor_assignments')
+    .delete()
+    .eq('mentor_id', mentorId)
+    .eq('student_id', studentId)
+
+  if (error) throw error
 }
 
 export async function listProgressUpdatesForStudents(studentIds: string[]): Promise<ProgressUpdate[]> {

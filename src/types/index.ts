@@ -18,15 +18,19 @@ export interface User {
   timezone?: string
   discord_handle?: string
   wallet_address?: string
+  is_active: boolean
   created_at: string
 }
+
+export type CohortStatus = 'upcoming' | 'active' | 'completed' | 'archived'
 
 export interface Cohort {
   id: string
   name: string
+  programme?: string
   start_date: string
   end_date: string
-  status: 'upcoming' | 'active' | 'completed'
+  status: CohortStatus
   student_count: number
   mentor_count: number
   discord_invite_url?: string
@@ -108,6 +112,14 @@ export interface CohortInviteLink {
   use_count: number
   revoked: boolean
   created_by: string
+  created_at: string
+}
+
+export interface MentorAssignment {
+  id: string
+  mentor_id: string
+  student_id: string
+  assigned_by: string
   created_at: string
 }
 

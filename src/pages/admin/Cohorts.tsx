@@ -1,12 +1,22 @@
 import * as React from 'react'
-import { Check, Copy, Link2, Loader2, Plus, Trash2 } from 'lucide-react'
-import { useAuth } from '@/lib/auth'
+import { Link } from 'react-router-dom'
+import { FolderKanban, Layers, Loader2, Plus, Rocket, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
+import { StatCard } from '@/components/StatCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -16,193 +26,15 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import {
-  createCohort,
-  createInviteLink,
-  deleteCohort,
-  getActiveInviteLink,
-  listCohorts,
-  revokeInviteLink,
-} from '@/data/queries'
+import { createCohort, listCohorts } from '@/data/queries'
 import { formatDate } from '@/lib/format'
-import type { Cohort, CohortInviteLink } from '@/types'
+import type { Cohort, CohortStatus } from '@/types'
 
-function DeleteCohortDialog({
-  cohort,
-  onDeleted,
-}: {
-  cohort: Cohort
-  onDeleted: (id: string) => void
-}) {
-  const [open, setOpen] = React.useState(false)
-  const [busy, setBusy] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-
-  async function handleDelete() {
-    setBusy(true)
-    setError(null)
-    try {
-      await deleteCohort(cohort.id)
-      onDeleted(cohort.id)
-      setOpen(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete cohort')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-7 text-destructive hover:text-destructive">
-          <Trash2 className="size-3.5" />
-          <span className="sr-only">Delete {cohort.name}</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete {cohort.name}?</DialogTitle>
-          <DialogDescription>
-            This permanently deletes the cohort along with its sessions, projects, and any active
-            invite link. Students and mentors assigned to it are not deleted — they'll just be
-            unassigned from a cohort. This can't be undone.
-          </DialogDescription>
-        </DialogHeader>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="destructive" size="sm" onClick={handleDelete} disabled={busy}>
-            {busy && <Loader2 className="size-4 animate-spin" />}
-            Delete cohort
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function InviteLinkDialog({ cohort }: { cohort: Cohort }) {
-  const { user } = useAuth()
-  const [open, setOpen] = React.useState(false)
-  const [link, setLink] = React.useState<CohortInviteLink | null>(null)
-  const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const [busy, setBusy] = React.useState(false)
-  const [copied, setCopied] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    getActiveInviteLink(cohort.id)
-      .then((data) => {
-        if (!cancelled) setLink(data)
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load invite link')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open, cohort.id])
-
-  async function handleGenerate() {
-    setBusy(true)
-    setError(null)
-    try {
-      const created = await createInviteLink(cohort.id, user.id)
-      setLink(created)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate link')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function handleRevoke() {
-    if (!link) return
-    setBusy(true)
-    setError(null)
-    try {
-      await revokeInviteLink(link.id)
-      setLink(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to revoke link')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const url = link ? `${window.location.origin}/join/${link.token}` : ''
-
-  function handleCopy() {
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-fit">
-          <Link2 className="size-4" /> Invite link
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Join link for {cohort.name}</DialogTitle>
-          <DialogDescription>
-            Anyone with this link can create their own student account, auto-enrolled in this
-            cohort. Expires 30 days after it's generated.
-          </DialogDescription>
-        </DialogHeader>
-
-        {loading && (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
-        )}
-
-        {!loading && error && <p className="text-sm text-destructive">{error}</p>}
-
-        {!loading && !link && (
-          <Button onClick={handleGenerate} disabled={busy} className="w-fit">
-            {busy && <Loader2 className="size-4 animate-spin" />}
-            Generate link
-          </Button>
-        )}
-
-        {!loading && link && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <Input value={url} readOnly className="text-xs" />
-              <Button type="button" variant="outline" size="icon" onClick={handleCopy}>
-                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                <span className="sr-only">Copy link</span>
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Expires {formatDate(link.expires_at)} · used {link.use_count} time
-              {link.use_count === 1 ? '' : 's'}
-            </p>
-            <DialogFooter>
-              <Button type="button" variant="destructive" size="sm" onClick={handleRevoke} disabled={busy}>
-                {busy && <Loader2 className="size-4 animate-spin" />}
-                Revoke link
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  )
+const statusVariant: Record<CohortStatus, 'success' | 'outline' | 'secondary'> = {
+  active: 'success',
+  upcoming: 'outline',
+  completed: 'secondary',
+  archived: 'outline',
 }
 
 export function AdminCohorts() {
@@ -210,8 +42,11 @@ export function AdminCohorts() {
   const [loading, setLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState<string | null>(null)
 
+  const [search, setSearch] = React.useState('')
+  const [statusFilter, setStatusFilter] = React.useState<CohortStatus | 'all'>('all')
+
   const [open, setOpen] = React.useState(false)
-  const [form, setForm] = React.useState({ name: '', start_date: '', end_date: '' })
+  const [form, setForm] = React.useState({ name: '', programme: '', start_date: '', end_date: '' })
   const [submitting, setSubmitting] = React.useState(false)
   const [formError, setFormError] = React.useState<string | null>(null)
 
@@ -238,15 +73,33 @@ export function AdminCohorts() {
     setSubmitting(true)
     setFormError(null)
     try {
-      const created = await createCohort(form)
+      const created = await createCohort({
+        name: form.name,
+        programme: form.programme || undefined,
+        start_date: form.start_date,
+        end_date: form.end_date,
+      })
       setCohorts((prev) => [created, ...prev])
-      setForm({ name: '', start_date: '', end_date: '' })
+      setForm({ name: '', programme: '', start_date: '', end_date: '' })
       setOpen(false)
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create cohort')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const filtered = cohorts.filter((c) => {
+    if (statusFilter !== 'all' && c.status !== statusFilter) return false
+    if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+
+  const counts = {
+    total: cohorts.length,
+    active: cohorts.filter((c) => c.status === 'active').length,
+    upcoming: cohorts.filter((c) => c.status === 'upcoming').length,
+    completed: cohorts.filter((c) => c.status === 'completed').length,
   }
 
   return (
@@ -274,6 +127,15 @@ export function AdminCohorts() {
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     placeholder="AI x Web3 Builder Venture — Cohort 5"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="cohort-programme">Programme (optional)</Label>
+                  <Input
+                    id="cohort-programme"
+                    value={form.programme}
+                    onChange={(e) => setForm((f) => ({ ...f, programme: e.target.value }))}
+                    placeholder="Builder Venture"
                   />
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -317,67 +179,110 @@ export function AdminCohorts() {
 
       {loadError && !loading && <p className="text-sm text-destructive">{loadError}</p>}
 
-      {!loading && !loadError && cohorts.length === 0 && (
-        <p className="text-sm text-muted-foreground">No cohorts yet — create the first one.</p>
-      )}
+      {!loading && !loadError && (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total Cohorts" value={counts.total} icon={Layers} hint="All statuses" />
+            <StatCard label="Active Cohorts" value={counts.active} icon={Rocket} hint="Running now" />
+            <StatCard
+              label="Completed Cohorts"
+              value={counts.completed}
+              icon={FolderKanban}
+              hint="Delivered"
+            />
+            <StatCard
+              label="Upcoming Cohorts"
+              value={counts.upcoming}
+              icon={Layers}
+              hint="Not yet started"
+            />
+          </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {!loading &&
-          !loadError &&
-          cohorts.map((cohort) => (
-            <Card key={cohort.id}>
-              <CardContent className="flex flex-col gap-3 pt-6">
-                <div className="flex items-start justify-between">
-                  <p className="font-medium">{cohort.name}</p>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={cohort.status === 'active' ? 'success' : 'outline'}
-                      className="capitalize"
-                    >
-                      {cohort.status}
-                    </Badge>
-                    <DeleteCohortDialog
-                      cohort={cohort}
-                      onDeleted={(id) => setCohorts((prev) => prev.filter((c) => c.id !== id))}
-                    />
-                  </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative sm:w-72">
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search cohort name..."
+                className="pl-9"
+              />
+            </div>
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as CohortStatus | 'all')}>
+              <div className="overflow-x-auto">
+                <TabsList>
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="active">Active</TabsTrigger>
+                  <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                  <TabsTrigger value="completed">Completed</TabsTrigger>
+                  <TabsTrigger value="archived">Archived</TabsTrigger>
+                </TabsList>
+              </div>
+            </Tabs>
+          </div>
+
+          {filtered.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {cohorts.length === 0 ? 'No cohorts yet — create the first one.' : 'No cohorts match.'}
+            </p>
+          )}
+
+          {filtered.length > 0 && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Cohort name</TableHead>
+                        <TableHead>Programme</TableHead>
+                        <TableHead>Start</TableHead>
+                        <TableHead>End</TableHead>
+                        <TableHead>Students</TableHead>
+                        <TableHead>Mentors</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filtered.map((cohort) => (
+                        <TableRow key={cohort.id}>
+                          <TableCell className="font-medium">{cohort.name}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {cohort.programme ?? '—'}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDate(cohort.start_date)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDate(cohort.end_date)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {cohort.student_count}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {cohort.mentor_count}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={statusVariant[cohort.status]} className="capitalize">
+                              {cohort.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link to={`/admin/cohorts/${cohort.id}`}>View cohort →</Link>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {formatDate(cohort.start_date)} – {formatDate(cohort.end_date)}
-                </p>
-                <div className="flex gap-4 text-sm text-muted-foreground">
-                  <span>{cohort.student_count} students</span>
-                  <span>{cohort.mentor_count} mentors</span>
-                </div>
-                <InviteLinkDialog cohort={cohort} />
-                {(cohort.discord_invite_url || cohort.notion_url) && (
-                  <div className="flex flex-wrap gap-3 border-t pt-3 text-xs">
-                    {cohort.discord_invite_url && (
-                      <a
-                        href={cohort.discord_invite_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        Discord →
-                      </a>
-                    )}
-                    {cohort.notion_url && (
-                      <a
-                        href={cohort.notion_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        Notion →
-                      </a>
-                    )}
-                  </div>
-                )}
               </CardContent>
             </Card>
-          ))}
-      </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

@@ -1,14 +1,15 @@
 import * as React from 'react'
-import { Loader2, Pencil, Plus } from 'lucide-react'
+import { Loader2, Pencil, Plus, Search, Shield, UserCheck, UserCog, Users as UsersIcon, UserX } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
+import { StatCard } from '@/components/StatCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -33,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { inviteUser, listCohorts, listUsers, updateUser } from '@/data/queries'
+import { inviteUser, listCohorts, listUsers, setUserActive, updateUser } from '@/data/queries'
 import { formatDate } from '@/lib/format'
 import type { Cohort, Role, User } from '@/types'
 
@@ -151,6 +152,47 @@ function EditUserDialog({
   )
 }
 
+function DeactivateButton({
+  user,
+  onChanged,
+}: {
+  user: User
+  onChanged: (updated: User) => void
+}) {
+  const [busy, setBusy] = React.useState(false)
+
+  async function handleToggle() {
+    setBusy(true)
+    try {
+      const updated = await setUserActive(user.id, !user.is_active)
+      onChanged(updated)
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Failed to update account status')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={user.is_active ? 'size-7 text-destructive hover:text-destructive' : 'size-7'}
+      onClick={handleToggle}
+      disabled={busy}
+    >
+      {busy ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : user.is_active ? (
+        <UserX className="size-3.5" />
+      ) : (
+        <UserCheck className="size-3.5" />
+      )}
+      <span className="sr-only">{user.is_active ? 'Deactivate' : 'Activate'} {user.full_name}</span>
+    </Button>
+  )
+}
+
 function UserTable({
   users,
   cohorts,
@@ -170,13 +212,14 @@ function UserTable({
           <TableHead>Email</TableHead>
           <TableHead>Role</TableHead>
           <TableHead>Cohort</TableHead>
+          <TableHead>Status</TableHead>
           <TableHead>Joined</TableHead>
-          <TableHead className="w-10" />
+          <TableHead className="w-20" />
         </TableRow>
       </TableHeader>
       <TableBody>
         {users.map((user) => (
-          <TableRow key={user.id}>
+          <TableRow key={user.id} className={user.is_active ? undefined : 'opacity-60'}>
             <TableCell className="font-medium">
               <div className="flex items-center gap-2">
                 <Avatar className="size-7">
@@ -194,10 +237,18 @@ function UserTable({
             <TableCell className="text-muted-foreground">
               {cohorts.find((c) => c.id === user.cohort_id)?.name ?? '—'}
             </TableCell>
+            <TableCell>
+              <Badge variant={user.is_active ? 'success' : 'outline'}>
+                {user.is_active ? 'Active' : 'Inactive'}
+              </Badge>
+            </TableCell>
             <TableCell className="text-muted-foreground">{formatDate(user.created_at)}</TableCell>
             <TableCell>
               {user.id !== currentUserId && (
-                <EditUserDialog user={user} cohorts={cohorts} onSaved={onUserSaved} />
+                <div className="flex items-center">
+                  <EditUserDialog user={user} cohorts={cohorts} onSaved={onUserSaved} />
+                  <DeactivateButton user={user} onChanged={onUserSaved} />
+                </div>
               )}
             </TableCell>
           </TableRow>
@@ -213,6 +264,10 @@ export function AdminUsers() {
   const [cohorts, setCohorts] = React.useState<Cohort[]>([])
   const [loading, setLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState<string | null>(null)
+
+  const [search, setSearch] = React.useState('')
+  const [roleFilter, setRoleFilter] = React.useState<Role | 'all'>('all')
+  const [statusFilter, setStatusFilter] = React.useState<'all' | 'active' | 'inactive'>('all')
 
   const [open, setOpen] = React.useState(false)
   const [form, setForm] = React.useState<{ full_name: string; email: string; role: Role; cohort_id: string }>({
@@ -270,6 +325,24 @@ export function AdminUsers() {
       setSubmitting(false)
     }
   }
+
+  const counts = {
+    total: users.length,
+    student: users.filter((u) => u.role === 'student').length,
+    mentor: users.filter((u) => u.role === 'mentor').length,
+    admin: users.filter((u) => u.role === 'admin').length,
+  }
+
+  const filtered = users.filter((u) => {
+    if (roleFilter !== 'all' && u.role !== roleFilter) return false
+    if (statusFilter === 'active' && !u.is_active) return false
+    if (statusFilter === 'inactive' && u.is_active) return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (!u.full_name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false
+    }
+    return true
+  })
 
   return (
     <div className="flex flex-col gap-6">
@@ -367,58 +440,60 @@ export function AdminUsers() {
       {loadError && !loading && <p className="text-sm text-destructive">{loadError}</p>}
 
       {!loading && !loadError && (
-        <Card>
-          <CardContent className="pt-6">
-            <Tabs defaultValue="all">
-              <div className="overflow-x-auto">
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total Users" value={counts.total} icon={UsersIcon} hint="All roles" />
+            <StatCard label="Students" value={counts.student} icon={UserCog} hint="Enrolled learners" />
+            <StatCard label="Mentors" value={counts.mentor} icon={UserCheck} hint="Active mentors" />
+            <StatCard label="Administrators" value={counts.admin} icon={Shield} hint="Programme admins" />
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative sm:w-72">
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or email..."
+                className="pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Tabs value={roleFilter} onValueChange={(v) => setRoleFilter(v as Role | 'all')}>
                 <TabsList>
-                  <TabsTrigger value="all">All ({users.length})</TabsTrigger>
-                  <TabsTrigger value="student">
-                    Students ({users.filter((u) => u.role === 'student').length})
-                  </TabsTrigger>
-                  <TabsTrigger value="mentor">
-                    Mentors ({users.filter((u) => u.role === 'mentor').length})
-                  </TabsTrigger>
-                  <TabsTrigger value="admin">
-                    Admins ({users.filter((u) => u.role === 'admin').length})
-                  </TabsTrigger>
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="student">Students</TabsTrigger>
+                  <TabsTrigger value="mentor">Mentors</TabsTrigger>
+                  <TabsTrigger value="admin">Admins</TabsTrigger>
                 </TabsList>
-              </div>
-              <TabsContent value="all" className="mt-4">
-                <UserTable
-                  users={users}
-                  cohorts={cohorts}
-                  currentUserId={currentUser.id}
-                  onUserSaved={handleUserSaved}
-                />
-              </TabsContent>
-              <TabsContent value="student" className="mt-4">
-                <UserTable
-                  users={users.filter((u) => u.role === 'student')}
-                  cohorts={cohorts}
-                  currentUserId={currentUser.id}
-                  onUserSaved={handleUserSaved}
-                />
-              </TabsContent>
-              <TabsContent value="mentor" className="mt-4">
-                <UserTable
-                  users={users.filter((u) => u.role === 'mentor')}
-                  cohorts={cohorts}
-                  currentUserId={currentUser.id}
-                  onUserSaved={handleUserSaved}
-                />
-              </TabsContent>
-              <TabsContent value="admin" className="mt-4">
-                <UserTable
-                  users={users.filter((u) => u.role === 'admin')}
-                  cohorts={cohorts}
-                  currentUserId={currentUser.id}
-                  onUserSaved={handleUserSaved}
-                />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+              </Tabs>
+              <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                <TabsList>
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="active">Active</TabsTrigger>
+                  <TabsTrigger value="inactive">Inactive</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No users match.</p>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="overflow-x-auto">
+                  <UserTable
+                    users={filtered}
+                    cohorts={cohorts}
+                    currentUserId={currentUser.id}
+                    onUserSaved={handleUserSaved}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   )

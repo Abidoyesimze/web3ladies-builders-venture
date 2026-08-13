@@ -25,6 +25,7 @@ import { MentorReviewDetail } from '@/pages/mentor/ReviewDetail'
 
 import { AdminDashboard } from '@/pages/admin/Dashboard'
 import { AdminCohorts } from '@/pages/admin/Cohorts'
+import { AdminCohortDetail } from '@/pages/admin/CohortDetail'
 import { AdminUsers } from '@/pages/admin/Users'
 import { AdminSessions } from '@/pages/admin/Sessions'
 import { AdminProjects } from '@/pages/admin/Projects'
@@ -72,6 +73,7 @@ function AppRoutes() {
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/cohorts" element={<AdminCohorts />} />
+          <Route path="/admin/cohorts/:cohortId" element={<AdminCohortDetail />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/sessions" element={<AdminSessions />} />
           <Route path="/admin/projects" element={<AdminProjects />} />
