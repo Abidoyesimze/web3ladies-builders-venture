@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Copy, Link2, Loader2, Plus } from 'lucide-react'
+import { Check, Copy, Link2, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,12 +19,70 @@ import {
 import {
   createCohort,
   createInviteLink,
+  deleteCohort,
   getActiveInviteLink,
   listCohorts,
   revokeInviteLink,
 } from '@/data/queries'
 import { formatDate } from '@/lib/format'
 import type { Cohort, CohortInviteLink } from '@/types'
+
+function DeleteCohortDialog({
+  cohort,
+  onDeleted,
+}: {
+  cohort: Cohort
+  onDeleted: (id: string) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  async function handleDelete() {
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteCohort(cohort.id)
+      onDeleted(cohort.id)
+      setOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete cohort')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-7 text-destructive hover:text-destructive">
+          <Trash2 className="size-3.5" />
+          <span className="sr-only">Delete {cohort.name}</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete {cohort.name}?</DialogTitle>
+          <DialogDescription>
+            This permanently deletes the cohort along with its sessions, projects, and any active
+            invite link. Students and mentors assigned to it are not deleted — they'll just be
+            unassigned from a cohort. This can't be undone.
+          </DialogDescription>
+        </DialogHeader>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="destructive" size="sm" onClick={handleDelete} disabled={busy}>
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Delete cohort
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function InviteLinkDialog({ cohort }: { cohort: Cohort }) {
   const { user } = useAuth()
@@ -271,12 +329,18 @@ export function AdminCohorts() {
               <CardContent className="flex flex-col gap-3 pt-6">
                 <div className="flex items-start justify-between">
                   <p className="font-medium">{cohort.name}</p>
-                  <Badge
-                    variant={cohort.status === 'active' ? 'success' : 'outline'}
-                    className="capitalize"
-                  >
-                    {cohort.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={cohort.status === 'active' ? 'success' : 'outline'}
+                      className="capitalize"
+                    >
+                      {cohort.status}
+                    </Badge>
+                    <DeleteCohortDialog
+                      cohort={cohort}
+                      onDeleted={(id) => setCohorts((prev) => prev.filter((c) => c.id !== id))}
+                    />
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {formatDate(cohort.start_date)} – {formatDate(cohort.end_date)}

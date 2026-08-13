@@ -55,6 +55,11 @@ export async function createCohort(input: {
   return { ...data, student_count: 0, mentor_count: 0 }
 }
 
+export async function deleteCohort(id: string): Promise<void> {
+  const { error } = await supabase.from('cohorts').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function getActiveInviteLink(cohortId: string): Promise<CohortInviteLink | null> {
   const { data, error } = await supabase
     .from('cohort_invite_links')
