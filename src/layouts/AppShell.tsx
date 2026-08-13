@@ -48,7 +48,7 @@ function SidebarContent({ nav, onNavigate }: { nav: NavItem[]; onNavigate?: () =
           W3
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold">Web3Ladies LMS</span>
+          <span className="text-sm font-semibold">Web3Ladies</span>
           <span className="text-xs text-muted-foreground">Builder Venture</span>
         </div>
       </div>
