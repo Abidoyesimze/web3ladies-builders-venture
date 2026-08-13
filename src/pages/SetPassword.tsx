@@ -1,72 +1,60 @@
 import * as React from 'react'
-import { Navigate, useLocation, useNavigate, type Location } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { useAuthState } from '@/lib/auth'
+import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabaseClient'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-export function Login() {
-  const { session, loading: authLoading } = useAuthState()
+export function SetPassword() {
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-  const from = (location.state as { from?: Location } | null)?.from?.pathname ?? '/'
 
-  const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
+  const [confirmPassword, setConfirmPassword] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  if (!authLoading && session) {
-    return <Navigate to={from} replace />
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setSubmitting(true)
     setError(null)
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (password !== confirmPassword) {
+      setError("Passwords don't match")
+      return
+    }
 
-    if (signInError) {
-      setError(signInError.message)
+    setSubmitting(true)
+    const { error: updateError } = await supabase.auth.updateUser({ password })
+
+    if (updateError) {
+      setError(updateError.message)
       setSubmitting(false)
       return
     }
 
-    navigate(from, { replace: true })
+    navigate('/', { replace: true })
   }
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-xl">Web3Ladies LMS</CardTitle>
-          <CardDescription>Sign in with the email and password an admin gave you.</CardDescription>
+          <CardTitle className="text-xl">Welcome, {user.full_name.split(' ')[0]}</CardTitle>
+          <CardDescription>Set a password to finish setting up your account.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="new-password">New password</Label>
               <div className="relative">
                 <Input
-                  id="password"
+                  id="new-password"
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -83,10 +71,21 @@ export function Login() {
                 </button>
               </div>
             </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="confirm-password">Confirm password</Label>
+              <Input
+                id="confirm-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" disabled={submitting} className="mt-2">
               {submitting && <Loader2 className="size-4 animate-spin" />}
-              Sign in
+              Set password
             </Button>
           </form>
         </CardContent>

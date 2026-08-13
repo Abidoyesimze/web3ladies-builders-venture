@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2, Pencil, Plus } from 'lucide-react'
+import { useAuth } from '@/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -32,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { inviteUser, listCohorts, listUsers } from '@/data/queries'
+import { inviteUser, listCohorts, listUsers, updateUser } from '@/data/queries'
 import { formatDate } from '@/lib/format'
 import type { Cohort, Role, User } from '@/types'
 
@@ -46,7 +47,121 @@ const roleVariant: Record<Role, 'default' | 'secondary' | 'outline'> = {
   student: 'outline',
 }
 
-function UserTable({ users, cohorts }: { users: User[]; cohorts: Cohort[] }) {
+function EditUserDialog({
+  user,
+  cohorts,
+  onSaved,
+}: {
+  user: User
+  cohorts: Cohort[]
+  onSaved: (updated: User) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [role, setRole] = React.useState<Role>(user.role)
+  const [cohortId, setCohortId] = React.useState(user.cohort_id ?? '')
+  const [submitting, setSubmitting] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (open) {
+      setRole(user.role)
+      setCohortId(user.cohort_id ?? '')
+      setError(null)
+    }
+  }, [open, user])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      const updated = await updateUser(user.id, {
+        role,
+        cohort_id: role === 'admin' ? null : cohortId || null,
+      })
+      onSaved(updated)
+      setOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update user')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-7">
+          <Pencil className="size-3.5" />
+          <span className="sr-only">Edit {user.full_name}</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit {user.full_name}</DialogTitle>
+          <DialogDescription>Change their role or cohort assignment.</DialogDescription>
+        </DialogHeader>
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          <div className="flex flex-col gap-2">
+            <Label>Role</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="student">Student</SelectItem>
+                <SelectItem value="mentor">Mentor</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {role !== 'admin' && (
+            <div className="flex flex-col gap-2">
+              <Label>Cohort</Label>
+              {cohorts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No cohorts exist yet — create one on the Cohorts page first.
+                </p>
+              ) : (
+                <Select value={cohortId} onValueChange={setCohortId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a cohort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cohorts.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="size-4 animate-spin" />}
+              Save changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function UserTable({
+  users,
+  cohorts,
+  currentUserId,
+  onUserSaved,
+}: {
+  users: User[]
+  cohorts: Cohort[]
+  currentUserId: string
+  onUserSaved: (updated: User) => void
+}) {
   return (
     <Table>
       <TableHeader>
@@ -56,6 +171,7 @@ function UserTable({ users, cohorts }: { users: User[]; cohorts: Cohort[] }) {
           <TableHead>Role</TableHead>
           <TableHead>Cohort</TableHead>
           <TableHead>Joined</TableHead>
+          <TableHead className="w-10" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -79,6 +195,11 @@ function UserTable({ users, cohorts }: { users: User[]; cohorts: Cohort[] }) {
               {cohorts.find((c) => c.id === user.cohort_id)?.name ?? '—'}
             </TableCell>
             <TableCell className="text-muted-foreground">{formatDate(user.created_at)}</TableCell>
+            <TableCell>
+              {user.id !== currentUserId && (
+                <EditUserDialog user={user} cohorts={cohorts} onSaved={onUserSaved} />
+              )}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -87,6 +208,7 @@ function UserTable({ users, cohorts }: { users: User[]; cohorts: Cohort[] }) {
 }
 
 export function AdminUsers() {
+  const { user: currentUser } = useAuth()
   const [users, setUsers] = React.useState<User[]>([])
   const [cohorts, setCohorts] = React.useState<Cohort[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -121,6 +243,10 @@ export function AdminUsers() {
       cancelled = true
     }
   }, [])
+
+  function handleUserSaved(updated: User) {
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
@@ -259,16 +385,36 @@ export function AdminUsers() {
                 </TabsList>
               </div>
               <TabsContent value="all" className="mt-4">
-                <UserTable users={users} cohorts={cohorts} />
+                <UserTable
+                  users={users}
+                  cohorts={cohorts}
+                  currentUserId={currentUser.id}
+                  onUserSaved={handleUserSaved}
+                />
               </TabsContent>
               <TabsContent value="student" className="mt-4">
-                <UserTable users={users.filter((u) => u.role === 'student')} cohorts={cohorts} />
+                <UserTable
+                  users={users.filter((u) => u.role === 'student')}
+                  cohorts={cohorts}
+                  currentUserId={currentUser.id}
+                  onUserSaved={handleUserSaved}
+                />
               </TabsContent>
               <TabsContent value="mentor" className="mt-4">
-                <UserTable users={users.filter((u) => u.role === 'mentor')} cohorts={cohorts} />
+                <UserTable
+                  users={users.filter((u) => u.role === 'mentor')}
+                  cohorts={cohorts}
+                  currentUserId={currentUser.id}
+                  onUserSaved={handleUserSaved}
+                />
               </TabsContent>
               <TabsContent value="admin" className="mt-4">
-                <UserTable users={users.filter((u) => u.role === 'admin')} cohorts={cohorts} />
+                <UserTable
+                  users={users.filter((u) => u.role === 'admin')}
+                  cohorts={cohorts}
+                  currentUserId={currentUser.id}
+                  onUserSaved={handleUserSaved}
+                />
               </TabsContent>
             </Tabs>
           </CardContent>

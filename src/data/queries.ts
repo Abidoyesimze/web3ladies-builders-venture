@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient'
 import type {
   AttendanceRecord,
   Cohort,
+  CohortInviteLink,
   IntakeForm,
   MentorComment,
   Project,
@@ -52,6 +53,55 @@ export async function createCohort(input: {
 
   if (error) throw error
   return { ...data, student_count: 0, mentor_count: 0 }
+}
+
+export async function getActiveInviteLink(cohortId: string): Promise<CohortInviteLink | null> {
+  const { data, error } = await supabase
+    .from('cohort_invite_links')
+    .select('*')
+    .eq('cohort_id', cohortId)
+    .eq('revoked', false)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+export async function createInviteLink(cohortId: string, createdBy: string): Promise<CohortInviteLink> {
+  const { data, error } = await supabase
+    .from('cohort_invite_links')
+    .insert({ cohort_id: cohortId, created_by: createdBy })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function revokeInviteLink(id: string): Promise<void> {
+  const { error } = await supabase.from('cohort_invite_links').update({ revoked: true }).eq('id', id)
+  if (error) throw error
+}
+
+export async function getCohortInviteInfo(
+  token: string,
+): Promise<{ cohort_name: string; valid: boolean } | null> {
+  const { data, error } = await supabase.rpc('get_cohort_invite_info', { p_token: token })
+  if (error) throw error
+  return data?.[0] ?? null
+}
+
+export async function joinCohort(input: {
+  token: string
+  email: string
+  full_name: string
+  password: string
+}): Promise<void> {
+  const { error } = await supabase.functions.invoke('join-cohort', { body: input })
+  if (error) throw error
 }
 
 export async function listSessions(): Promise<Session[]> {
@@ -106,6 +156,21 @@ export async function inviteUser(input: {
 }): Promise<void> {
   const { error } = await supabase.functions.invoke('invite-user', { body: input })
   if (error) throw error
+}
+
+export async function updateUser(
+  userId: string,
+  input: { role: Role; cohort_id: string | null },
+): Promise<User> {
+  const { data, error } = await supabase
+    .from('users')
+    .update(input)
+    .eq('id', userId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
 }
 
 export async function getUser(id: string): Promise<User> {

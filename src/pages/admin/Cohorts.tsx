@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { Check, Copy, Link2, Loader2, Plus } from 'lucide-react'
+import { useAuth } from '@/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,9 +16,136 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { createCohort, listCohorts } from '@/data/queries'
+import {
+  createCohort,
+  createInviteLink,
+  getActiveInviteLink,
+  listCohorts,
+  revokeInviteLink,
+} from '@/data/queries'
 import { formatDate } from '@/lib/format'
-import type { Cohort } from '@/types'
+import type { Cohort, CohortInviteLink } from '@/types'
+
+function InviteLinkDialog({ cohort }: { cohort: Cohort }) {
+  const { user } = useAuth()
+  const [open, setOpen] = React.useState(false)
+  const [link, setLink] = React.useState<CohortInviteLink | null>(null)
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [busy, setBusy] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    getActiveInviteLink(cohort.id)
+      .then((data) => {
+        if (!cancelled) setLink(data)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load invite link')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, cohort.id])
+
+  async function handleGenerate() {
+    setBusy(true)
+    setError(null)
+    try {
+      const created = await createInviteLink(cohort.id, user.id)
+      setLink(created)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate link')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRevoke() {
+    if (!link) return
+    setBusy(true)
+    setError(null)
+    try {
+      await revokeInviteLink(link.id)
+      setLink(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to revoke link')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const url = link ? `${window.location.origin}/join/${link.token}` : ''
+
+  function handleCopy() {
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-fit">
+          <Link2 className="size-4" /> Invite link
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Join link for {cohort.name}</DialogTitle>
+          <DialogDescription>
+            Anyone with this link can create their own student account, auto-enrolled in this
+            cohort. Expires 30 days after it's generated.
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading && (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {!loading && error && <p className="text-sm text-destructive">{error}</p>}
+
+        {!loading && !link && (
+          <Button onClick={handleGenerate} disabled={busy} className="w-fit">
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Generate link
+          </Button>
+        )}
+
+        {!loading && link && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Input value={url} readOnly className="text-xs" />
+              <Button type="button" variant="outline" size="icon" onClick={handleCopy}>
+                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                <span className="sr-only">Copy link</span>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Expires {formatDate(link.expires_at)} · used {link.use_count} time
+              {link.use_count === 1 ? '' : 's'}
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="destructive" size="sm" onClick={handleRevoke} disabled={busy}>
+                {busy && <Loader2 className="size-4 animate-spin" />}
+                Revoke link
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export function AdminCohorts() {
   const [cohorts, setCohorts] = React.useState<Cohort[]>([])
@@ -157,6 +285,7 @@ export function AdminCohorts() {
                   <span>{cohort.student_count} students</span>
                   <span>{cohort.mentor_count} mentors</span>
                 </div>
+                <InviteLinkDialog cohort={cohort} />
                 {(cohort.discord_invite_url || cohort.notion_url) && (
                   <div className="flex flex-wrap gap-3 border-t pt-3 text-xs">
                     {cohort.discord_invite_url && (

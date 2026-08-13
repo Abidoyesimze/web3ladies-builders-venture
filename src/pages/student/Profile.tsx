@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
@@ -126,6 +127,9 @@ export function StudentProfile() {
                 <p className="font-medium">{user.full_name}</p>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/set-password">Change password</Link>
+              </Button>
             </CardContent>
           </Card>
 

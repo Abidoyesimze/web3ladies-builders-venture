@@ -99,6 +99,18 @@ export interface Settings {
   updated_at: string
 }
 
+export interface CohortInviteLink {
+  id: string
+  cohort_id: string
+  token: string
+  expires_at: string
+  max_uses?: number
+  use_count: number
+  revoked: boolean
+  created_by: string
+  created_at: string
+}
+
 export interface MentorComment {
   id: string
   project_id: string

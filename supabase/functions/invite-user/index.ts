@@ -64,8 +64,14 @@ Deno.serve(async (req) => {
     // Privileged client — only ever used inside this server-side function.
     const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+    // Send the invite link to /set-password instead of the app root, so new
+    // users are prompted to set a password instead of landing straight in
+    // the dashboard with no way to log back in later.
+    const origin = req.headers.get('origin')
+
     const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { full_name, role, cohort_id: cohort_id ?? null },
+      ...(origin ? { redirectTo: `${origin}/set-password` } : {}),
     })
 
     if (error) {
