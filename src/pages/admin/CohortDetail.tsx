@@ -66,7 +66,7 @@ import {
   unassignMentorFromStudent,
   updateCohort,
 } from '@/data/queries'
-import { formatDate, formatDateTime, stageLabels } from '@/lib/format'
+import { formatDate, formatDateTime, nowForDateTimeInput, stageLabels } from '@/lib/format'
 import type {
   AttendanceRecord,
   Cohort,
@@ -326,6 +326,7 @@ function AddSessionDialog({ cohortId, onCreated }: { cohortId: string; onCreated
                 <SelectContent>
                   <SelectItem value="discord">Discord</SelectItem>
                   <SelectItem value="zoom">Zoom</SelectItem>
+                  <SelectItem value="google-meet">Google Meet</SelectItem>
                   <SelectItem value="in-person">In person</SelectItem>
                 </SelectContent>
               </Select>
@@ -337,6 +338,7 @@ function AddSessionDialog({ cohortId, onCreated }: { cohortId: string; onCreated
               <Input
                 id="start-time"
                 type="datetime-local"
+                min={nowForDateTimeInput()}
                 value={form.start_time}
                 onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
               />
@@ -346,6 +348,7 @@ function AddSessionDialog({ cohortId, onCreated }: { cohortId: string; onCreated
               <Input
                 id="end-time"
                 type="datetime-local"
+                min={form.start_time || nowForDateTimeInput()}
                 value={form.end_time}
                 onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
               />
@@ -455,7 +458,7 @@ function AssignMentorDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" disabled={mentors.length === 0}>
+        <Button variant="outline" size="sm">
           <UserPlus className="size-4" /> Assign Mentor
         </Button>
       </DialogTrigger>
@@ -466,6 +469,12 @@ function AssignMentorDialog({
             Pick a mentor from this cohort, then choose which students they're responsible for.
           </DialogDescription>
         </DialogHeader>
+        {mentors.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No mentors are assigned to this cohort yet. Set a mentor's cohort on the Users page
+            first, then come back here to assign them to specific students.
+          </p>
+        ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label>Mentor</Label>
@@ -542,6 +551,7 @@ function AssignMentorDialog({
             </Button>
           </DialogFooter>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -832,6 +842,30 @@ export function AdminCohortDetail() {
             </div>
           }
         />
+        {(cohort.discord_invite_url || cohort.notion_url) && (
+          <div className="flex flex-wrap gap-4 text-sm">
+            {cohort.discord_invite_url && (
+              <a
+                href={cohort.discord_invite_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline"
+              >
+                Discord →
+              </a>
+            )}
+            {cohort.notion_url && (
+              <a
+                href={cohort.notion_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline"
+              >
+                Notion →
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">

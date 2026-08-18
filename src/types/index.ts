@@ -46,7 +46,7 @@ export interface Session {
   start_time: string
   end_time: string
   facilitator: string
-  location: 'discord' | 'zoom' | 'in-person'
+  location: 'discord' | 'zoom' | 'in-person' | 'google-meet'
   link?: string
 }
 

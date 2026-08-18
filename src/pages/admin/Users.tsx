@@ -177,7 +177,11 @@ function DeactivateButton({
     <Button
       variant="ghost"
       size="icon"
-      className={user.is_active ? 'size-7 text-destructive hover:text-destructive' : 'size-7'}
+      className={
+        user.is_active
+          ? 'size-7 text-muted-foreground hover:text-destructive'
+          : 'size-7 text-muted-foreground hover:text-success'
+      }
       onClick={handleToggle}
       disabled={busy}
     >

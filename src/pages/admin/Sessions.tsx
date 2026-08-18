@@ -23,7 +23,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { createSession, listCohorts, listSessions } from '@/data/queries'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, nowForDateTimeInput } from '@/lib/format'
 import type { Cohort, Session } from '@/types'
 
 export function AdminSessions() {
@@ -171,6 +171,7 @@ export function AdminSessions() {
                     <Input
                       id="start-time"
                       type="datetime-local"
+                      min={nowForDateTimeInput()}
                       value={form.start_time}
                       onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
                     />
@@ -180,6 +181,7 @@ export function AdminSessions() {
                     <Input
                       id="end-time"
                       type="datetime-local"
+                      min={form.start_time || nowForDateTimeInput()}
                       value={form.end_time}
                       onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
                     />
@@ -206,6 +208,7 @@ export function AdminSessions() {
                       <SelectContent>
                         <SelectItem value="discord">Discord</SelectItem>
                         <SelectItem value="zoom">Zoom</SelectItem>
+                        <SelectItem value="google-meet">Google Meet</SelectItem>
                         <SelectItem value="in-person">In person</SelectItem>
                       </SelectContent>
                     </Select>

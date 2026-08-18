@@ -33,6 +33,12 @@ export function timeAgo(iso: string) {
   return `${Math.floor(diffDays / 30)}mo ago`
 }
 
+export function nowForDateTimeInput() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 16)
+}
+
 export const stageLabels: Record<string, string> = {
   ideation: 'Ideation',
   validation: 'Validation',
