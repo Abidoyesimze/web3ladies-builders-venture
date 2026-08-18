@@ -14,6 +14,20 @@ interface AuthState {
 
 const AuthContext = React.createContext<AuthState | null>(null)
 
+// Client-enforced session cap — Supabase's own server-side session
+// timebox is a Pro-plan feature. This isn't tamper-proof (someone
+// could edit localStorage), but it's a reasonable stand-in for an
+// internal cohort LMS rather than a high-security app. Deliberately
+// no inactivity tracking — just a hard 24h from the actual sign-in.
+const SESSION_STARTED_KEY = 'w3l-session-started-at'
+const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
+function isSessionExpired() {
+  const startedAt = Number(localStorage.getItem(SESSION_STARTED_KEY))
+  if (!startedAt) return false
+  return Date.now() - startedAt >= SESSION_MAX_AGE_MS
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = React.useState<Session | null>(null)
   const [user, setUser] = React.useState<User | null>(null)
@@ -34,12 +48,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function handleSession(nextSession: Session | null) {
       if (!nextSession) {
+        localStorage.removeItem(SESSION_STARTED_KEY)
         if (!cancelled) {
           setUser(null)
           setLoading(false)
         }
         return
       }
+
+      if (isSessionExpired()) {
+        localStorage.removeItem(SESSION_STARTED_KEY)
+        await supabase.auth.signOut()
+        return
+      }
+      if (!localStorage.getItem(SESSION_STARTED_KEY)) {
+        localStorage.setItem(SESSION_STARTED_KEY, String(Date.now()))
+      }
+
       await loadProfile(nextSession.user.id)
       if (!cancelled) setLoading(false)
     }
@@ -52,16 +77,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (cancelled) return
+      if (event === 'SIGNED_IN') {
+        localStorage.setItem(SESSION_STARTED_KEY, String(Date.now()))
+      }
       setSession(nextSession)
       setLoading(true)
       handleSession(nextSession)
     })
 
+    const interval = setInterval(() => {
+      if (isSessionExpired()) {
+        localStorage.removeItem(SESSION_STARTED_KEY)
+        supabase.auth.signOut()
+      }
+    }, 60_000)
+
     return () => {
       cancelled = true
       subscription.unsubscribe()
+      clearInterval(interval)
     }
   }, [loadProfile])
 
