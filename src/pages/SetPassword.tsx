@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabaseClient'
+import { markInviteAccepted } from '@/data/queries'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -34,6 +35,14 @@ export function SetPassword() {
       setError(updateError.message)
       setSubmitting(false)
       return
+    }
+
+    try {
+      await markInviteAccepted(user.id)
+    } catch {
+      // Non-critical — the password change already succeeded, and a
+      // missed status flip just means they'd briefly still show as
+      // "Pending" to admins. Not worth blocking navigation over.
     }
 
     navigate('/', { replace: true })

@@ -19,6 +19,7 @@ export interface User {
   discord_handle?: string
   wallet_address?: string
   is_active: boolean
+  invite_accepted_at?: string
   created_at: string
 }
 
@@ -37,17 +38,23 @@ export interface Cohort {
   notion_url?: string
 }
 
+export type SessionStatus = 'scheduled' | 'active' | 'completed' | 'cancelled'
+
 export interface Session {
   id: string
   cohort_id: string
   title: string
   description?: string
   type: 'live-class' | 'workshop' | 'office-hours' | 'demo-day'
+  stage?: ProjectStage
   start_time: string
   end_time: string
-  facilitator: string
+  facilitator_id?: string
   location: 'discord' | 'zoom' | 'in-person' | 'google-meet'
   link?: string
+  learning_objectives?: string
+  resources_url?: string
+  status: SessionStatus
 }
 
 export interface AttendanceRecord {

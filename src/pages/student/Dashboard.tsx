@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   getProjectByStudentId,
+  getUserNames,
   listMentorComments,
   listProgressUpdatesByStudent,
   listSessions,
@@ -20,6 +21,7 @@ export function StudentDashboard() {
   const { user } = useAuth()
   const [project, setProject] = React.useState<Project | null>(null)
   const [sessions, setSessions] = React.useState<Session[]>([])
+  const [facilitatorNames, setFacilitatorNames] = React.useState<{ id: string; full_name: string }[]>([])
   const [updates, setUpdates] = React.useState<ProgressUpdate[]>([])
   const [comments, setComments] = React.useState<MentorComment[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -33,10 +35,15 @@ export function StudentDashboard() {
       listProgressUpdatesByStudent(user.id),
       listMentorComments({ studentId: user.id }),
     ])
-      .then(([projectData, sessionData, updateData, commentData]) => {
+      .then(async ([projectData, sessionData, updateData, commentData]) => {
+        const facilitatorIds = [
+          ...new Set(sessionData.map((s) => s.facilitator_id).filter((id): id is string => !!id)),
+        ]
+        const names = await getUserNames(facilitatorIds)
         if (cancelled) return
         setProject(projectData)
         setSessions(sessionData)
+        setFacilitatorNames(names)
         setUpdates(updateData)
         setComments(commentData)
       })
@@ -123,7 +130,8 @@ export function StudentDashboard() {
                 <div>
                   <p className="text-sm font-medium">{session.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatDateTime(session.start_time)} · {session.facilitator}
+                    {formatDateTime(session.start_time)} ·{' '}
+                    {facilitatorNames.find((f) => f.id === session.facilitator_id)?.full_name ?? 'Unassigned'}
                   </p>
                 </div>
                 <Badge variant="outline" className="capitalize">

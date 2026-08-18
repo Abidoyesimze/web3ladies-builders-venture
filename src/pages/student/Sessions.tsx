@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { listSessions } from '@/data/queries'
+import { getUserNames, listSessions } from '@/data/queries'
 import { formatDateTime } from '@/lib/format'
 import { ExternalLink, Loader2 } from 'lucide-react'
 import type { Session } from '@/types'
@@ -19,14 +19,22 @@ const typeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
 export function StudentSessions() {
   const { user } = useAuth()
   const [sessions, setSessions] = React.useState<Session[]>([])
+  const [facilitatorNames, setFacilitatorNames] = React.useState<{ id: string; full_name: string }[]>([])
   const [loading, setLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let cancelled = false
     listSessions()
-      .then((data) => {
-        if (!cancelled) setSessions(data)
+      .then(async (data) => {
+        const facilitatorIds = [
+          ...new Set(data.map((s) => s.facilitator_id).filter((id): id is string => !!id)),
+        ]
+        const names = await getUserNames(facilitatorIds)
+        if (!cancelled) {
+          setSessions(data)
+          setFacilitatorNames(names)
+        }
       })
       .catch((err) => {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Failed to load sessions')
@@ -80,7 +88,8 @@ export function StudentSessions() {
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   {formatDateTime(session.start_time)} – {formatDateTime(session.end_time)} ·{' '}
-                  {session.facilitator} · <span className="capitalize">{session.location}</span>
+                  {facilitatorNames.find((f) => f.id === session.facilitator_id)?.full_name ?? 'Unassigned'} ·{' '}
+                  <span className="capitalize">{session.location.replace('-', ' ')}</span>
                 </p>
               </div>
               {session.link && (

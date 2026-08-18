@@ -68,6 +68,14 @@ Deno.serve(async (req) => {
       return json({ error: error.message }, 400)
     }
 
+    // They set their own password right here — no separate "accept"
+    // step like the admin-invite flow, so they're immediately active
+    // rather than sitting in a Pending state.
+    await adminClient
+      .from('users')
+      .update({ invite_accepted_at: new Date().toISOString() })
+      .eq('id', data.user.id)
+
     await adminClient
       .from('cohort_invite_links')
       .update({ use_count: link.use_count + 1 })

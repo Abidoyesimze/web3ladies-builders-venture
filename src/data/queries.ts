@@ -12,6 +12,7 @@ import type {
   ProgressUpdate,
   Role,
   Session,
+  SessionStatus,
   Settings,
   User,
 } from '@/types'
@@ -154,14 +155,46 @@ export async function createSession(input: {
   cohort_id: string
   title: string
   type: Session['type']
+  stage?: ProjectStage | null
   start_time: string
   end_time: string
-  facilitator: string
+  facilitator_id: string
   location: Session['location']
+  description?: string | null
+  learning_objectives?: string | null
+  resources_url?: string | null
 }): Promise<Session> {
   const { data, error } = await supabase.from('sessions').insert(input).select().single()
   if (error) throw error
   return data
+}
+
+export async function updateSession(
+  id: string,
+  input: Partial<{
+    title: string
+    type: Session['type']
+    stage: ProjectStage | null
+    start_time: string
+    end_time: string
+    facilitator_id: string
+    location: Session['location']
+    learning_objectives: string | null
+    resources_url: string | null
+    status: SessionStatus
+    description: string | null
+  }>,
+): Promise<Session> {
+  const { data, error } = await supabase.from('sessions').update(input).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function getUserNames(ids: string[]): Promise<{ id: string; full_name: string }[]> {
+  if (ids.length === 0) return []
+  const { data, error } = await supabase.rpc('get_user_names', { p_ids: ids })
+  if (error) throw error
+  return data ?? []
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -247,6 +280,16 @@ export async function updateOwnProfile(
 
   if (error) throw error
   return data
+}
+
+export async function markInviteAccepted(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('users')
+    .update({ invite_accepted_at: new Date().toISOString() })
+    .eq('id', userId)
+    .is('invite_accepted_at', null)
+
+  if (error) throw error
 }
 
 export async function getIntakeForm(studentId: string): Promise<IntakeForm | null> {

@@ -4,6 +4,7 @@ import { roleHome } from '@/lib/roles'
 import { ProtectedRoute } from '@/routes/ProtectedRoute'
 import { Login } from '@/pages/Login'
 import { SetPassword } from '@/pages/SetPassword'
+import { ForgotPassword } from '@/pages/ForgotPassword'
 import { Join } from '@/pages/Join'
 
 import { StudentLayout } from '@/layouts/StudentLayout'
@@ -40,6 +41,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/join/:token" element={<Join />} />
 
       <Route element={<ProtectedRoute />}>

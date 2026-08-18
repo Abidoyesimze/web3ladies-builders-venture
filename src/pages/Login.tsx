@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Navigate, useLocation, useNavigate, type Location } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, type Location } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuthState } from '@/lib/auth'
 import { supabase } from '@/lib/supabaseClient'
@@ -61,7 +61,12 @@ export function Login() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <Input
                   id="password"

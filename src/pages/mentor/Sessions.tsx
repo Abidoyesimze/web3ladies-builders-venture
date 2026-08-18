@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
+  getUserNames,
   listAttendanceForStudents,
   listSessions,
   listStudentsByCohort,
@@ -34,6 +35,7 @@ export function MentorSessions() {
   const { user } = useAuth()
   const [sessionsList, setSessionsList] = React.useState<Session[]>([])
   const [students, setStudents] = React.useState<User[]>([])
+  const [facilitatorNames, setFacilitatorNames] = React.useState<{ id: string; full_name: string }[]>([])
   const [attendanceRecords, setAttendanceRecords] = React.useState<AttendanceRecord[]>([])
   const [loading, setLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState<string | null>(null)
@@ -52,11 +54,17 @@ export function MentorSessions() {
           listSessions(),
           listAttendanceForStudents(studentIds),
         ])
+        const cohortSessions = user.cohort_id
+          ? sessionData.filter((s) => s.cohort_id === user.cohort_id)
+          : sessionData
+        const facilitatorIds = [
+          ...new Set(cohortSessions.map((s) => s.facilitator_id).filter((id): id is string => !!id)),
+        ]
+        const names = await getUserNames(facilitatorIds)
         if (cancelled) return
         setStudents(studentData)
-        setSessionsList(
-          user.cohort_id ? sessionData.filter((s) => s.cohort_id === user.cohort_id) : sessionData,
-        )
+        setSessionsList(cohortSessions)
+        setFacilitatorNames(names)
         setAttendanceRecords(attendanceData)
       })
       .catch((err) => {
@@ -137,7 +145,8 @@ export function MentorSessions() {
                     </Badge>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {formatDateTime(session.start_time)} · {session.facilitator}
+                    {formatDateTime(session.start_time)} ·{' '}
+                    {facilitatorNames.find((f) => f.id === session.facilitator_id)?.full_name ?? 'Unassigned'}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {attendance.length} of {students.length} marked

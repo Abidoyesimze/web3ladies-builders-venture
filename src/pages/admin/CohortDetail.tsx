@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -62,6 +63,7 @@ import {
   listProjects,
   listSessions,
   listStudentsByCohort,
+  listUsers,
   revokeInviteLink,
   unassignMentorFromStudent,
   updateCohort,
@@ -74,6 +76,7 @@ import type {
   MentorAssignment,
   Project,
   ProgressUpdate,
+  ProjectStage,
   Session,
   User,
 } from '@/types'
@@ -240,22 +243,38 @@ function EditCohortDialog({ cohort, onSaved }: { cohort: Cohort; onSaved: (c: Co
   )
 }
 
-function AddSessionDialog({ cohortId, onCreated }: { cohortId: string; onCreated: (s: Session) => void }) {
+function AddSessionDialog({
+  cohortId,
+  facilitators,
+  onCreated,
+}: {
+  cohortId: string
+  facilitators: User[]
+  onCreated: (s: Session) => void
+}) {
   const [open, setOpen] = React.useState(false)
   const [form, setForm] = React.useState({
     title: '',
     type: 'live-class' as Session['type'],
+    stage: 'none' as ProjectStage | 'none',
     start_time: '',
     end_time: '',
-    facilitator: '',
+    facilitator_id: '',
     location: 'discord' as Session['location'],
+    description: '',
+    learning_objectives: '',
+    resources_url: '',
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
+  React.useEffect(() => {
+    if (open) setForm((f) => ({ ...f, facilitator_id: f.facilitator_id || (facilitators[0]?.id ?? '') }))
+  }, [open, facilitators])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.title || !form.start_time || !form.end_time) return
+    if (!form.title || !form.start_time || !form.end_time || !form.facilitator_id) return
     setSubmitting(true)
     setError(null)
     try {
@@ -263,13 +282,28 @@ function AddSessionDialog({ cohortId, onCreated }: { cohortId: string; onCreated
         cohort_id: cohortId,
         title: form.title,
         type: form.type,
+        stage: form.stage === 'none' ? null : form.stage,
         start_time: new Date(form.start_time).toISOString(),
         end_time: new Date(form.end_time).toISOString(),
-        facilitator: form.facilitator,
+        facilitator_id: form.facilitator_id,
         location: form.location,
+        description: form.description || null,
+        learning_objectives: form.learning_objectives || null,
+        resources_url: form.resources_url || null,
       })
       onCreated(created)
-      setForm({ title: '', type: 'live-class', start_time: '', end_time: '', facilitator: '', location: 'discord' })
+      setForm({
+        title: '',
+        type: 'live-class',
+        stage: 'none',
+        start_time: '',
+        end_time: '',
+        facilitator_id: '',
+        location: 'discord',
+        description: '',
+        learning_objectives: '',
+        resources_url: '',
+      })
       setOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to schedule session')
@@ -315,19 +349,21 @@ function AddSessionDialog({ cohortId, onCreated }: { cohortId: string; onCreated
               </Select>
             </div>
             <div className="flex flex-col gap-2">
-              <Label>Location</Label>
+              <Label>Curriculum stage (optional)</Label>
               <Select
-                value={form.location}
-                onValueChange={(v) => setForm((f) => ({ ...f, location: v as Session['location'] }))}
+                value={form.stage}
+                onValueChange={(v) => setForm((f) => ({ ...f, stage: v as ProjectStage | 'none' }))}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="discord">Discord</SelectItem>
-                  <SelectItem value="zoom">Zoom</SelectItem>
-                  <SelectItem value="google-meet">Google Meet</SelectItem>
-                  <SelectItem value="in-person">In person</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
+                  {Object.entries(stageLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -354,12 +390,67 @@ function AddSessionDialog({ cohortId, onCreated }: { cohortId: string; onCreated
               />
             </div>
           </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label>Facilitator</Label>
+              <Select
+                value={form.facilitator_id}
+                onValueChange={(v) => setForm((f) => ({ ...f, facilitator_id: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a facilitator" />
+                </SelectTrigger>
+                <SelectContent>
+                  {facilitators.map((fac) => (
+                    <SelectItem key={fac.id} value={fac.id}>
+                      {fac.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Location</Label>
+              <Select
+                value={form.location}
+                onValueChange={(v) => setForm((f) => ({ ...f, location: v as Session['location'] }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="discord">Discord</SelectItem>
+                  <SelectItem value="zoom">Zoom</SelectItem>
+                  <SelectItem value="google-meet">Google Meet</SelectItem>
+                  <SelectItem value="in-person">In person</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="facilitator">Facilitator</Label>
+            <Label htmlFor="cd-description">Description</Label>
+            <Textarea
+              id="cd-description"
+              rows={2}
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="cd-learning-objectives">Learning objectives</Label>
+            <Textarea
+              id="cd-learning-objectives"
+              rows={2}
+              value={form.learning_objectives}
+              onChange={(e) => setForm((f) => ({ ...f, learning_objectives: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="cd-resources-url">Resources (Notion page link)</Label>
             <Input
-              id="facilitator"
-              value={form.facilitator}
-              onChange={(e) => setForm((f) => ({ ...f, facilitator: e.target.value }))}
+              id="cd-resources-url"
+              value={form.resources_url}
+              onChange={(e) => setForm((f) => ({ ...f, resources_url: e.target.value }))}
             />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -733,6 +824,7 @@ export function AdminCohortDetail() {
   const [cohort, setCohort] = React.useState<Cohort | null>(null)
   const [students, setStudents] = React.useState<User[]>([])
   const [mentors, setMentors] = React.useState<User[]>([])
+  const [allUsers, setAllUsers] = React.useState<User[]>([])
   const [sessions, setSessions] = React.useState<Session[]>([])
   const [projects, setProjects] = React.useState<Project[]>([])
   const [attendance, setAttendance] = React.useState<AttendanceRecord[]>([])
@@ -749,11 +841,12 @@ export function AdminCohortDetail() {
     let cancelled = false
     getCohort(cohortId)
       .then(async (cohortData) => {
-        const [studentData, mentorData, sessionData, projectData] = await Promise.all([
+        const [studentData, mentorData, sessionData, projectData, userData] = await Promise.all([
           listStudentsByCohort(cohortId),
           listMentorsByCohort(cohortId),
           listSessions(),
           listProjects(),
+          listUsers(),
         ])
         const studentIds = studentData.map((s) => s.id)
         const [attendanceData, updateData, assignmentData] = await Promise.all([
@@ -765,6 +858,7 @@ export function AdminCohortDetail() {
         setCohort(cohortData)
         setStudents(studentData)
         setMentors(mentorData)
+        setAllUsers(userData)
         setSessions(sessionData.filter((s) => s.cohort_id === cohortId))
         setProjects(projectData.filter((p) => p.cohort_id === cohortId))
         setAttendance(attendanceData)
@@ -835,7 +929,11 @@ export function AdminCohortDetail() {
                 assignments={assignments}
                 onAssignmentsChanged={setAssignments}
               />
-              <AddSessionDialog cohortId={cohort.id} onCreated={(s) => setSessions((prev) => [...prev, s])} />
+              <AddSessionDialog
+                cohortId={cohort.id}
+                facilitators={allUsers.filter((u) => u.role === 'mentor' || u.role === 'admin')}
+                onCreated={(s) => setSessions((prev) => [...prev, s])}
+              />
               <EditCohortDialog cohort={cohort} onSaved={setCohort} />
               <InviteLinkDialog cohort={cohort} />
               <DeleteCohortDialog cohort={cohort} />

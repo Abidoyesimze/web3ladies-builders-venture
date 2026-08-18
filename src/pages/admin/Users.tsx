@@ -42,6 +42,25 @@ function initials(name: string) {
   return name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
 }
 
+type UserStatus = 'active' | 'pending' | 'inactive'
+
+function getUserStatus(user: User): UserStatus {
+  if (!user.is_active) return 'inactive'
+  return user.invite_accepted_at ? 'active' : 'pending'
+}
+
+const statusBadgeVariant: Record<UserStatus, 'success' | 'warning' | 'outline'> = {
+  active: 'success',
+  pending: 'warning',
+  inactive: 'outline',
+}
+
+const statusLabel: Record<UserStatus, string> = {
+  active: 'Active',
+  pending: 'Pending',
+  inactive: 'Inactive',
+}
+
 const roleVariant: Record<Role, 'default' | 'secondary' | 'outline'> = {
   admin: 'default',
   mentor: 'secondary',
@@ -242,8 +261,8 @@ function UserTable({
               {cohorts.find((c) => c.id === user.cohort_id)?.name ?? '—'}
             </TableCell>
             <TableCell>
-              <Badge variant={user.is_active ? 'success' : 'outline'}>
-                {user.is_active ? 'Active' : 'Inactive'}
+              <Badge variant={statusBadgeVariant[getUserStatus(user)]}>
+                {statusLabel[getUserStatus(user)]}
               </Badge>
             </TableCell>
             <TableCell className="text-muted-foreground">{formatDate(user.created_at)}</TableCell>
@@ -271,7 +290,7 @@ export function AdminUsers() {
 
   const [search, setSearch] = React.useState('')
   const [roleFilter, setRoleFilter] = React.useState<Role | 'all'>('all')
-  const [statusFilter, setStatusFilter] = React.useState<'all' | 'active' | 'inactive'>('all')
+  const [statusFilter, setStatusFilter] = React.useState<'all' | UserStatus>('all')
 
   const [open, setOpen] = React.useState(false)
   const [form, setForm] = React.useState<{ full_name: string; email: string; role: Role; cohort_id: string }>({
@@ -339,8 +358,7 @@ export function AdminUsers() {
 
   const filtered = users.filter((u) => {
     if (roleFilter !== 'all' && u.role !== roleFilter) return false
-    if (statusFilter === 'active' && !u.is_active) return false
-    if (statusFilter === 'inactive' && u.is_active) return false
+    if (statusFilter !== 'all' && getUserStatus(u) !== statusFilter) return false
     if (search) {
       const q = search.toLowerCase()
       if (!u.full_name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false
@@ -448,7 +466,7 @@ export function AdminUsers() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Total Users" value={counts.total} icon={UsersIcon} hint="All roles" />
             <StatCard label="Students" value={counts.student} icon={UserCog} hint="Enrolled learners" />
-            <StatCard label="Mentors" value={counts.mentor} icon={UserCheck} hint="Active mentors" />
+            <StatCard label="Mentors" value={counts.mentor} icon={UserCheck} hint="All mentors" />
             <StatCard label="Administrators" value={counts.admin} icon={Shield} hint="Programme admins" />
           </div>
 
@@ -475,6 +493,7 @@ export function AdminUsers() {
                 <TabsList>
                   <TabsTrigger value="all">All</TabsTrigger>
                   <TabsTrigger value="active">Active</TabsTrigger>
+                  <TabsTrigger value="pending">Pending</TabsTrigger>
                   <TabsTrigger value="inactive">Inactive</TabsTrigger>
                 </TabsList>
               </Tabs>
