@@ -26,6 +26,7 @@ import {
 import { createSession, listCohorts, listSessions, listUsers, updateSession } from '@/data/queries'
 import { formatDateTime, nowForDateTimeInput, stageLabels } from '@/lib/format'
 import { getErrorMessage } from '@/lib/utils'
+import { useToast } from '@/lib/toast'
 import type { Cohort, ProjectStage, Session, SessionStatus, User } from '@/types'
 
 const statusVariant: Record<SessionStatus, 'success' | 'outline' | 'secondary' | 'destructive'> = {
@@ -96,6 +97,7 @@ function SessionDialog({
   onSaved: (s: Session) => void
 }) {
   const isEdit = !!session
+  const { showToast } = useToast()
   const [open, setOpen] = React.useState(false)
   const [form, setForm] = React.useState<SessionForm>(() =>
     session ? formFromSession(session) : emptyForm(cohorts[0]?.id ?? '', facilitators[0]?.id ?? ''),
@@ -146,6 +148,7 @@ function SessionDialog({
         : await createSession(payload)
       onSaved(saved)
       setOpen(false)
+      showToast(isEdit ? 'Session updated' : 'Session created')
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to save session'))
     } finally {
