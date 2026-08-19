@@ -172,6 +172,7 @@ export async function createSession(input: {
 export async function updateSession(
   id: string,
   input: Partial<{
+    cohort_id: string
     title: string
     type: Session['type']
     stage: ProjectStage | null

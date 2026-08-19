@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog'
 import { createSession, listCohorts, listSessions, listUsers, updateSession } from '@/data/queries'
 import { formatDateTime, nowForDateTimeInput, stageLabels } from '@/lib/format'
+import { getErrorMessage } from '@/lib/utils'
 import type { Cohort, ProjectStage, Session, SessionStatus, User } from '@/types'
 
 const statusVariant: Record<SessionStatus, 'success' | 'outline' | 'secondary' | 'destructive'> = {
@@ -134,7 +135,7 @@ function SessionDialog({
       onSaved(saved)
       setOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save session')
+      setError(getErrorMessage(err, 'Failed to save session'))
     } finally {
       setSubmitting(false)
     }
@@ -356,7 +357,7 @@ export function AdminSessions() {
         setUsers(userData)
       })
       .catch((err) => {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Failed to load sessions')
+        if (!cancelled) setLoadError(getErrorMessage(err, 'Failed to load sessions'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
