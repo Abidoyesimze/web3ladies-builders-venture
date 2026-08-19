@@ -103,6 +103,15 @@ function SessionDialog({
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
+  // Never let someone pick a NEW past date — but if we're editing a
+  // session whose start time is already in the past, allow it to stay
+  // there (or move later) rather than fighting the browser's native
+  // min-date validation on an already-valid existing value.
+  const minStart =
+    session && new Date(session.start_time).getTime() < Date.now()
+      ? session.start_time.slice(0, 16)
+      : nowForDateTimeInput()
+
   React.useEffect(() => {
     if (open) {
       setForm(session ? formFromSession(session) : emptyForm(cohorts[0]?.id ?? '', facilitators[0]?.id ?? ''))
@@ -112,7 +121,10 @@ function SessionDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.title || !form.cohort_id || !form.start_time || !form.end_time || !form.facilitator_id) return
+    if (!form.title || !form.cohort_id || !form.start_time || !form.end_time || !form.facilitator_id) {
+      setError('Title, cohort, start, end, and facilitator are all required.')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -248,7 +260,7 @@ function SessionDialog({
               <Input
                 id="start-time"
                 type="datetime-local"
-                min={isEdit ? undefined : nowForDateTimeInput()}
+                min={minStart}
                 value={form.start_time}
                 onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
               />
@@ -258,7 +270,7 @@ function SessionDialog({
               <Input
                 id="end-time"
                 type="datetime-local"
-                min={isEdit ? undefined : form.start_time || nowForDateTimeInput()}
+                min={form.start_time || minStart}
                 value={form.end_time}
                 onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
               />
