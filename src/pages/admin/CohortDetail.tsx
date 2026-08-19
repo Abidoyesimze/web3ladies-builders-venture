@@ -68,7 +68,7 @@ import {
   unassignMentorFromStudent,
   updateCohort,
 } from '@/data/queries'
-import { formatDate, formatDateTime, nowForDateTimeInput, stageLabels } from '@/lib/format'
+import { formatDate, formatDateTime, nowForDateTimeInput, stageLabels, todayForDateInput } from '@/lib/format'
 import type {
   AttendanceRecord,
   Cohort,
@@ -112,6 +112,11 @@ function EditCohortDialog({ cohort, onSaved }: { cohort: Cohort; onSaved: (c: Co
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  // Block picking a NEW past start date, but don't fight the browser's
+  // native min-date validation on a cohort whose start date is already
+  // in the past.
+  const minStart = cohort.start_date < todayForDateInput() ? cohort.start_date : todayForDateInput()
 
   React.useEffect(() => {
     if (open) {
@@ -186,6 +191,7 @@ function EditCohortDialog({ cohort, onSaved }: { cohort: Cohort; onSaved: (c: Co
               <Input
                 id="edit-start"
                 type="date"
+                min={minStart}
                 value={form.start_date}
                 onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
               />
@@ -195,6 +201,7 @@ function EditCohortDialog({ cohort, onSaved }: { cohort: Cohort; onSaved: (c: Co
               <Input
                 id="edit-end"
                 type="date"
+                min={form.start_date || minStart}
                 value={form.end_date}
                 onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
               />

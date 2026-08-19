@@ -27,7 +27,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { createCohort, listCohorts } from '@/data/queries'
-import { formatDate } from '@/lib/format'
+import { formatDate, todayForDateInput } from '@/lib/format'
 import type { Cohort, CohortStatus } from '@/types'
 
 const statusVariant: Record<CohortStatus, 'success' | 'outline' | 'secondary'> = {
@@ -144,6 +144,7 @@ export function AdminCohorts() {
                     <Input
                       id="start-date"
                       type="date"
+                      min={todayForDateInput()}
                       value={form.start_date}
                       onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
                     />
@@ -153,6 +154,7 @@ export function AdminCohorts() {
                     <Input
                       id="end-date"
                       type="date"
+                      min={form.start_date || todayForDateInput()}
                       value={form.end_date}
                       onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
                     />

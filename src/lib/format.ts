@@ -39,6 +39,10 @@ export function nowForDateTimeInput() {
   return local.toISOString().slice(0, 16)
 }
 
+export function todayForDateInput() {
+  return nowForDateTimeInput().slice(0, 10)
+}
+
 export const stageLabels: Record<string, string> = {
   ideation: 'Ideation',
   validation: 'Validation',
